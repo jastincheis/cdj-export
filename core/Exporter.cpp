@@ -218,6 +218,16 @@ ExportReport exportToStick (const std::vector<Track>& playlist, const juce::File
         return report;
     }
 
+    // A stick pulled out in the instant between the two renames of the
+    // Pioneer writer has only the previous library, set aside: put it back.
+    {
+        const auto pioneer = root.getChildFile ("PIONEER");
+        const auto setAside = root.getChildFile ("PIONEER.adormis-old");
+
+        if (! pioneer.exists() && setAside.isDirectory())
+            setAside.moveFileTo (pioneer);
+    }
+
     // Never touch a library someone else made.
     StickLibrary library;
     const auto content = inspectStick (root);
@@ -477,7 +487,7 @@ ExportReport exportToStick (const std::vector<Track>& playlist, const juce::File
     library.writtenBy = "Adormis CDJ Export " + programVersion();
     library.writtenAt = juce::Time::getCurrentTime().toISO8601 (true);
 
-    if (! say ((total - 1.0) / total, "Writing the playlist and cues"))
+    if (! say ((total - 1.0) / total, "Writing the CDJ library: waveforms, beat grids, cues"))
     {
         undo();
         report.cancelled = true;

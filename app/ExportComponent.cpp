@@ -2,6 +2,7 @@
 
 #include "FormatDialog.h"
 #include "Mp3.h"
+#include "PioneerWriter.h"
 
 namespace cdj
 {
@@ -685,7 +686,7 @@ void ExportComponent::runExport()
                 setProgress (f);
                 setStatusMessage (s);
                 return ! threadShouldExit();
-            });
+            }, writePioneerLibrary);
         }
 
         void threadComplete (bool cancelled) override
@@ -699,11 +700,10 @@ void ExportComponent::runExport()
                 if (report.tracksConverted > 0)
                     text << " (" << report.tracksConverted << " converted)";
 
-                text << ".\n\nThe CDJ database itself (export.pdb) comes in the next step; for now the stick has "
-                        "the audio files, the list of tracks with their cues";
+                text << ".\n\nThe stick is ready for CDJs and rekordbox: playlists, cues, loops, beat grid and waveforms";
 
                 if (report.xmlFile != juce::File())
-                    text << " and \"" << report.xmlFile.getFileName() << "\" for rekordbox";
+                    text << ", plus \"" << report.xmlFile.getFileName() << "\" for rekordbox's XML import";
 
                 text << ".";
             }

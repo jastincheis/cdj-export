@@ -27,7 +27,8 @@ if(NOT TARGET juce::juce_core)
     endif()
 endif()
 
-# cdj_core: reading tracks and markers, cues, drives, and writing the stick.
+# cdj_core: reading tracks and markers, cues, drives, and writing the stick
+# (audio, rekordbox XML and the Pioneer library: export.pdb, ANLZ, settings).
 # No GUI, so Adormis Audio can link it as it is. INTERFACE library: every
 # target compiles the sources with its own JUCE modules.
 add_library(cdj_core INTERFACE)
@@ -40,7 +41,11 @@ target_sources(cdj_core INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/core/Library.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/Mp3.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/RekordboxXml.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/Exporter.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/Exporter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/PioneerPdb.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/PioneerAnlz.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/PioneerSettings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/PioneerWriter.cpp)
 target_include_directories(cdj_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/core)
 target_link_libraries(cdj_core INTERFACE juce::juce_audio_formats juce::juce_dsp)
 target_compile_definitions(cdj_core INTERFACE CDJ_VERSION="${PROJECT_VERSION}" JUCE_USE_MP3AUDIOFORMAT=1)

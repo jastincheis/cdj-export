@@ -78,9 +78,10 @@ int defaultHotCueColour (int hotIndex)
 {
     // Hot cue colour codes 0x01–0x3e from rekordbox's hot cue palette (the
     // table in Deep Symmetry's beat-link CueList.findRecordboxColor); 0 = the
-    // plain green older players show. One distinct colour per pad:
-    // green, teal, blue, purple, pink, red, orange, yellow.
-    static constexpr int table[] = { 0x16, 0x12, 0x01, 0x38, 0x2d, 0x2a, 0x24, 0x20 };
+    // plain green older players show. One distinct colour per pad, all from
+    // the 16 of rekordbox's hot cue menu (the ones the players have their
+    // own colour bytes for): green, teal, blue, purple, pink, red, orange, yellow.
+    static constexpr int table[] = { 0x16, 0x12, 0x01, 0x38, 0x2d, 0x2a, 0x26, 0x20 };
     return hotIndex >= 0 && hotIndex < 8 ? table[hotIndex] : 0;
 }
 
@@ -90,7 +91,7 @@ Rgb hotCueRgb (int hotIndex)
     static constexpr Rgb table[] = {
         Rgb { 0x28, 0xe2, 0x14 }, Rgb { 0x10, 0xb1, 0x76 }, Rgb { 0x30, 0x5a, 0xff },
         Rgb { 0xb4, 0x32, 0xff }, Rgb { 0xff, 0x12, 0x7b }, Rgb { 0xe6, 0x28, 0x28 },
-        Rgb { 0xff, 0x8c, 0x00 }, Rgb { 0xc3, 0xaf, 0x04 } };
+        Rgb { 0xe0, 0x64, 0x1b }, Rgb { 0xc3, 0xaf, 0x04 } };
     return hotIndex >= 0 && hotIndex < 8 ? table[hotIndex] : table[0];
 }
 } // namespace cdj

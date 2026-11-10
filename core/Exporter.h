@@ -33,9 +33,10 @@ struct ExportReport
 // Called often with 0…1 and what's happening; return false to cancel.
 using ExportProgress = std::function<bool (double fraction, const juce::String& status)>;
 
-// The Pioneer database writer plugs in here (export.pdb, ANLZ, *SETTING.DAT).
-// It gets the complete library and writes every Pioneer file; until it is
-// set, the export writes the audio, the list of tracks and the rekordbox XML.
+// The Pioneer database writer plugs in here (export.pdb, ANLZ, *SETTING.DAT):
+// writePioneerLibrary() in PioneerWriter.h. It gets the complete library and
+// writes every Pioneer file; without it, the export writes only the audio,
+// the list of tracks and the rekordbox XML.
 using PioneerWriter = std::function<bool (const StickLibrary&, const juce::File& stickRoot, juce::String& error)>;
 
 ExportReport exportToStick (const std::vector<Track>& playlist, const juce::File& stickRoot,
