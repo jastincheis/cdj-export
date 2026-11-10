@@ -1,5 +1,6 @@
 #include "ExportComponent.h"
 
+#include "FormatDialog.h"
 #include "Mp3.h"
 
 namespace cdj
@@ -221,6 +222,24 @@ ExportComponent::ExportComponent()
     stickBox.onChange = [this] { updateState(); };
     addAndMakeVisible (stickBox);
 
+    formatButton.onClick = [this]
+    {
+        if (const auto* d = selectedDrive())
+        {
+            editor.stop();
+            juce::Component::SafePointer<ExportComponent> safe (this);
+            showFormatDialog (*this, *d, [safe] (juce::File)
+            {
+                if (safe != nullptr)
+                {
+                    safe->lastDriveSignature.clear();
+                    safe->refreshDrives();
+                }
+            });
+        }
+    };
+    addAndMakeVisible (formatButton);
+
     stickNote.setColour (juce::Label::textColourId, warn);
     stickNote.setJustificationType (juce::Justification::topLeft);
     stickNote.setMinimumHorizontalScale (1.0f);
@@ -310,6 +329,8 @@ void ExportComponent::resized()
     bottom.removeFromTop (10);
     row = bottom.removeFromTop (28);
     stickLabel.setBounds (row.removeFromLeft (110));
+    formatButton.setBounds (row.removeFromRight (100));
+    row.removeFromRight (8);
     stickBox.setBounds (row);
     stickNote.setBounds (bottom.removeFromTop (36).withTrimmedLeft (110));
     replaceToggle.setBounds (bottom.removeFromTop (26).withTrimmedLeft (106));
@@ -568,7 +589,8 @@ void ExportComponent::updateState()
         note = d->fileSystemWarning();
 
         if (d->content == StickContent::rekordbox)
-            note = "This stick has a rekordbox library. It won't be touched: use an empty stick.";
+            note = "This stick has a rekordbox library. It won't be touched: use an empty stick, or Format... it "
+                   "(that erases everything on it).";
     }
 
     stickNote.setText (note, juce::dontSendNotification);
@@ -577,6 +599,7 @@ void ExportComponent::updateState()
     const auto canExport = ! tracks.empty() && d != nullptr && d->content != StickContent::rekordbox
                            && playlistName.getText().trim().isNotEmpty();
     exportButton.setEnabled (canExport);
+    formatButton.setEnabled (d != nullptr);
     hotCountBox.setEnabled (hotToggle.getToggleState());
 
     const auto selected = playlist->list.getNumSelectedRows();

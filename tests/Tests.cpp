@@ -4,6 +4,7 @@
 #include "CuePlan.h"
 #include "Drives.h"
 #include "Exporter.h"
+#include "Format.h"
 #include "Library.h"
 #include "Mp3.h"
 #include "RekordboxXml.h"
@@ -98,6 +99,26 @@ Track load (const juce::File& f)
     juce::String error;
     check (loadTrack (f, t, error), "load " + f.getFileName() + ": " + error);
     return t;
+}
+
+void testFormatRules()
+{
+    check (cleanVolumeLabel ("My Stick ă!") == "MYSTICK", "volume label cleaned: " + cleanVolumeLabel ("My Stick ă!"));
+    check (cleanVolumeLabel ("abcdefghijklmnop") == "ABCDEFGHIJK", "volume label at most 11 characters");
+    check (cleanVolumeLabel ("") == "ADORMIS", "empty label gets a default");
+
+    FormatPlan small, big, huge;
+    small.diskBytes = 16LL << 30;
+    big.diskBytes = 64LL << 30;
+    huge.diskBytes = 4LL << 40;
+    check (formatLimitation (small, FileSystem::fat32).isEmpty(), "FAT32 on 16 GB is fine everywhere");
+    check (formatLimitation (big, FileSystem::exfat).isEmpty(), "exFAT on 64 GB is fine everywhere");
+   #if JUCE_WINDOWS
+    check (formatLimitation (big, FileSystem::fat32).isNotEmpty(), "Windows: FAT32 on 64 GB not offered yet");
+   #else
+    check (formatLimitation (big, FileSystem::fat32).isEmpty(), "FAT32 on 64 GB is fine here");
+   #endif
+    check (formatLimitation (huge, FileSystem::fat32).isNotEmpty(), "over 2 TB refused (MBR)");
 }
 
 void testCueMaths()
@@ -499,6 +520,7 @@ int main()
     dir.getChildFile ("home").createDirectory();
 
     testCueMaths();
+    testFormatRules();
     testNames();
     testMarkersAndCues (dir);
     testExport (dir);

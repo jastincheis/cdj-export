@@ -61,6 +61,7 @@ private:
 
     juce::Label stickLabel { {}, "Stick" };
     juce::ComboBox stickBox;
+    juce::TextButton formatButton { "Format..." };
     juce::Label stickNote;
     juce::ToggleButton replaceToggle { "Replace everything on this stick (otherwise this playlist is added to it)" };
 
