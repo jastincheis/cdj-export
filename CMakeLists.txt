@@ -69,7 +69,8 @@ add_library(cdj_ui INTERFACE)
 target_sources(cdj_ui INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/app/ExportComponent.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/app/TrackEditor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/FormatDialog.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/app/FormatDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/app/AudioBrowser.cpp)
 target_include_directories(cdj_ui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/app)
 target_link_libraries(cdj_ui INTERFACE cdj_core juce::juce_gui_extra juce::juce_audio_utils)
 

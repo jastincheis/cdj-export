@@ -227,7 +227,7 @@ TrackEditor::TrackEditor()
         addAndMakeVisible (*l);
     }
 
-    keysHint.setText ("Space play/stop   W/E start/end   Up/Down zoom   Left/Right markers   M or double-click: add marker   "
+    keysHint.setText ("Space play/stop   W/E start/end   Up/Down zoom   Left/Right move (stops on markers, Shift faster, Ctrl next marker)   M or double-click: add marker   "
                       "double-click a marker or select it + Delete: remove   R rename   B first beat   K metronome   "
                       "G snap to grid (Shift: opposite)   drag a flag to move it",
                       juce::dontSendNotification);
@@ -595,6 +595,43 @@ void TrackEditor::renameMarker (int index)
     }), true);
 }
 
+// Left / Right: move by a slice of what is on screen (zoom in for finer
+// steps), stopping on any marker or region start on the way.
+void TrackEditor::scrub (int direction, double fractionOfView)
+{
+    if (track == nullptr)
+        return;
+
+    const auto from = transport.isPlaying() ? playhead() : cursor;
+    auto to = juce::jlimit (0.0, track->seconds(), from + direction * viewLength * fractionOfView);
+    constexpr double epsilon = 0.0005;
+
+    std::vector<double> points;
+
+    for (const auto& m : track->markers)
+        points.push_back (track->markerInFile (m.sample));
+
+    for (const auto& r : track->regions)
+        points.push_back (track->markerInFile (r.start));
+
+    for (auto p : points)
+    {
+        if (direction > 0 && p > from + epsilon && p < to)
+            to = p;
+        else if (direction < 0 && p < from - epsilon && p > to)
+            to = p;
+    }
+
+    cursor = to;
+    selected = markerNearCursor();
+
+    if (transport.isPlaying())
+        transport.setPosition (cursor);
+
+    showSeconds (cursor);
+    repaint();
+}
+
 void TrackEditor::jumpMarker (int direction)
 {
     if (track == nullptr)
@@ -765,8 +802,15 @@ bool TrackEditor::keyPressed (const juce::KeyPress& key)
     else if (code == 'E' || code == 'e')                { moveTo (track->seconds()); setView (track->seconds() - viewLength, viewLength); }
     else if (code == juce::KeyPress::upKey)             zoom (0.5, at);
     else if (code == juce::KeyPress::downKey)           zoom (2.0, at);
-    else if (code == juce::KeyPress::leftKey)           jumpMarker (-1);
-    else if (code == juce::KeyPress::rightKey)          jumpMarker (1);
+    else if (code == juce::KeyPress::leftKey || code == juce::KeyPress::rightKey)
+    {
+        const auto direction = code == juce::KeyPress::rightKey ? 1 : -1;
+
+        if (key.getModifiers().isCommandDown())
+            jumpMarker (direction);                     // Ctrl: straight to the next marker
+        else
+            scrub (direction, key.getModifiers().isShiftDown() ? 0.25 : 0.05);
+    }
     else if ((code == 'M' || code == 'm') && ! key.getModifiers().isCommandDown())
                                                         addMarker (at, key.getModifiers().isShiftDown());
     else if (code == 'G' || code == 'g')                { snapButton.setToggleState (! snapButton.getToggleState(), juce::dontSendNotification);

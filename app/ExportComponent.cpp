@@ -1,5 +1,7 @@
 #include "ExportComponent.h"
 
+#include "AudioBrowser.h"
+
 #include "FormatDialog.h"
 #include "Mp3.h"
 #include "PioneerWriter.h"
@@ -241,6 +243,45 @@ ExportComponent::ExportComponent()
     };
     addAndMakeVisible (formatButton);
 
+    refreshButton.onClick = [this] { lastDriveSignature.clear(); refreshDrives(); };
+    addAndMakeVisible (refreshButton);
+
+    mountButton.onClick = [this]
+    {
+        if (const auto* d = selectedDrive())
+        {
+            auto drive = *d;
+            juce::String error;
+
+            if (! mountDrive (drive, error))
+                juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Stick not mounted", error);
+            else
+                justMounted = drive.root;
+
+            lastDriveSignature.clear();
+            refreshDrives();
+        }
+    };
+    addChildComponent (mountButton);
+
+    ejectButton.onClick = [this]
+    {
+        if (const auto* d = selectedDrive())
+        {
+            juce::String error;
+
+            if (ejectDrive (*d, error))
+                juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Stick ejected",
+                                                        "You can pull the stick out now.");
+            else
+                juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Stick not ejected", error);
+
+            lastDriveSignature.clear();
+            refreshDrives();
+        }
+    };
+    addAndMakeVisible (ejectButton);
+
     stickNote.setColour (juce::Label::textColourId, warn);
     stickNote.setJustificationType (juce::Justification::topLeft);
     stickNote.setMinimumHorizontalScale (1.0f);
@@ -331,7 +372,13 @@ void ExportComponent::resized()
     row = bottom.removeFromTop (28);
     stickLabel.setBounds (row.removeFromLeft (110));
     formatButton.setBounds (row.removeFromRight (100));
-    row.removeFromRight (8);
+    row.removeFromRight (6);
+    refreshButton.setBounds (row.removeFromRight (80));
+    row.removeFromRight (6);
+    ejectButton.setBounds (row.removeFromRight (70));
+    row.removeFromRight (6);
+    mountButton.setBounds (row.removeFromRight (80));
+    row.removeFromRight (6);
     stickBox.setBounds (row);
     stickNote.setBounds (bottom.removeFromTop (36).withTrimmedLeft (110));
     replaceToggle.setBounds (bottom.removeFromTop (26).withTrimmedLeft (106));
@@ -399,18 +446,12 @@ void ExportComponent::addFiles (const juce::StringArray& paths)
 
 void ExportComponent::chooseFiles()
 {
-    chooser = std::make_unique<juce::FileChooser> ("Add audio files", juce::File(), "*.wav;*.mp3;*.aif;*.aiff;*.flac");
-    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles
-                              | juce::FileBrowserComponent::canSelectMultipleItems,
-                          [this] (const juce::FileChooser& fc)
-                          {
-                              juce::StringArray paths;
-
-                              for (const auto& f : fc.getResults())
-                                  paths.add (f.getFullPathName());
-
-                              addFiles (paths);
-                          });
+    editor.stop();
+    showAudioBrowser (*this, [safe = juce::Component::SafePointer<ExportComponent> (this)] (juce::StringArray paths)
+                      {
+                          if (safe != nullptr)
+                              safe->addFiles (paths);
+                      });
 }
 
 void ExportComponent::removeSelected()
@@ -498,16 +539,18 @@ void ExportComponent::timerCallback()
 void ExportComponent::refreshDrives()
 {
     auto found = findDrives();
-    juce::String signature;
+    juce::String signature ("drives:");     // never empty: a cleared signature always refreshes, even with no stick
 
     for (const auto& d : found)
-        signature << d.root.getFullPathName() << "|" << (int) d.content << "|" << d.freeBytes / (1 << 20) << ";";
+        signature << d.root.getFullPathName() << "|" << d.device << "|" << (int) d.mounted << "|" << (int) d.content
+                  << "|" << d.freeBytes / (1 << 20) << ";";
 
     if (signature == lastDriveSignature)
         return;
 
     lastDriveSignature = signature;
-    const auto previous = selectedDrive() != nullptr ? selectedDrive()->root : juce::File();
+    const auto previous = selectedDrive() != nullptr ? *selectedDrive() : Drive();
+    const auto hadPrevious = selectedDrive() != nullptr;
     drives = std::move (found);
 
     stickBox.clear (juce::dontSendNotification);
@@ -517,9 +560,13 @@ void ExportComponent::refreshDrives()
     {
         stickBox.addItem (drives[(size_t) i].describe(), i + 1);
 
-        if (drives[(size_t) i].root == previous)
+        if (justMounted != juce::File() && drives[(size_t) i].mounted && drives[(size_t) i].root == justMounted)
+            select = i + 1;     // just mounted: the same stick, now with a folder
+        else if (select == 0 && hadPrevious && sameDrive (drives[(size_t) i], previous))
             select = i + 1;
     }
+
+    justMounted = juce::File();
 
     // One stick: just pick it.
     if (select == 0 && drives.size() == 1)
@@ -585,7 +632,11 @@ void ExportComponent::updateState()
     const auto* d = selectedDrive();
     juce::String note;
 
-    if (d != nullptr)
+    if (d != nullptr && ! d->mounted)
+    {
+        note = "This stick isn't mounted. Press Mount to use it, or Format... to make it a CDJ stick.";
+    }
+    else if (d != nullptr)
     {
         note = d->fileSystemWarning();
 
@@ -595,12 +646,14 @@ void ExportComponent::updateState()
     }
 
     stickNote.setText (note, juce::dontSendNotification);
-    replaceToggle.setVisible (d != nullptr && d->content == StickContent::adormis);
+    replaceToggle.setVisible (d != nullptr && d->mounted && d->content == StickContent::adormis);
+    mountButton.setVisible (d != nullptr && ! d->mounted);
 
-    const auto canExport = ! tracks.empty() && d != nullptr && d->content != StickContent::rekordbox
+    const auto canExport = ! tracks.empty() && d != nullptr && d->mounted && d->content != StickContent::rekordbox
                            && playlistName.getText().trim().isNotEmpty();
     exportButton.setEnabled (canExport);
     formatButton.setEnabled (d != nullptr);
+    ejectButton.setEnabled (d != nullptr);
     hotCountBox.setEnabled (hotToggle.getToggleState());
 
     const auto selected = playlist->list.getNumSelectedRows();

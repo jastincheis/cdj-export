@@ -9,7 +9,7 @@
 
 // One track up close: waveform, beat grid, markers, playback.
 //   Space  play / stop          W / E   start / end of the file
-//   Up / Down  zoom in / out    Left / Right  previous / next marker
+//   Up / Down  zoom in / out    Left / Right  move (stops on markers; Shift faster; Ctrl next marker)
 //   M or double-click  add a marker      double-click a marker  remove it
 //   click a marker to select it, Delete removes it        R  rename the selected marker
 //   B  first beat (the "1") at the cursor        Ctrl+S  save markers into the file
@@ -93,6 +93,7 @@ private:
     void renameMarker (int index);
     void sortMarkers (int& keepIndex);
     void jumpMarker (int direction);
+    void scrub (int direction, double fractionOfView);
     void markersEdited();
 
     void setFirstBeat (double seconds);

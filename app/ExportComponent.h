@@ -61,7 +61,8 @@ private:
 
     juce::Label stickLabel { {}, "Stick" };
     juce::ComboBox stickBox;
-    juce::TextButton formatButton { "Format..." };
+    juce::TextButton formatButton { "Format..." }, mountButton { "Mount" }, refreshButton { "Refresh" }, ejectButton { "Eject" };
+    juce::File justMounted;     // select this stick at the next refresh
     juce::Label stickNote;
     juce::ToggleButton replaceToggle { "Replace everything on this stick (otherwise this playlist is added to it)" };
 

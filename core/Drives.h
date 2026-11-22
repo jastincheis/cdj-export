@@ -16,7 +16,9 @@ enum class StickContent
 
 struct Drive
 {
-    juce::File root;
+    juce::File root;            // where it is mounted; empty when it isn't (Linux)
+    bool mounted = true;
+    juce::String device;        // Linux: /dev/sdb for a stick that isn't mounted
     juce::String label;         // volume name, or the mount folder's name
     juce::String fileSystem;    // "vfat", "exfat", "FAT32", "msdos", … as the OS reports it
     juce::int64 totalBytes = 0, freeBytes = 0;
@@ -28,6 +30,18 @@ struct Drive
 };
 
 std::vector<Drive> findDrives();
+
+// Mounts a stick that isn't (Linux, where nothing mounts sticks by itself
+// on some desktops). Fills `root`; false with a reason, e.g. when the stick
+// has no file system a computer can mount (then it needs Format...).
+bool mountDrive (Drive& drive, juce::String& error);
+
+// Safely removes a stick: writes everything still in memory, unmounts it and
+// (Linux) powers it off, so it can be pulled out. False with a reason.
+bool ejectDrive (const Drive& drive, juce::String& error);
+
+// The same stick in another list (after a refresh), by mount point or device.
+bool sameDrive (const Drive& a, const Drive& b);
 StickContent inspectStick (const juce::File& root);
 
 // The small file that marks a stick as written by this program.

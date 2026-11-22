@@ -105,12 +105,19 @@ bool planFormat (const Drive& drive, FormatPlan& plan, juce::String& error)
     plan = {};
     plan.drive = drive;
 
-    for (const auto& line : mountLines())
+    if (! drive.mounted)
     {
-        const auto parts = juce::StringArray::fromTokens (line, " ", "");
+        plan.partition = drive.device;      // the whole stick
+    }
+    else
+    {
+        for (const auto& line : mountLines())
+        {
+            const auto parts = juce::StringArray::fromTokens (line, " ", "");
 
-        if (parts.size() >= 2 && juce::File (unescape (parts[1])) == drive.root && parts[0].startsWith ("/dev/"))
-            plan.partition = parts[0];
+            if (parts.size() >= 2 && juce::File (unescape (parts[1])) == drive.root && parts[0].startsWith ("/dev/"))
+                plan.partition = parts[0];
+        }
     }
 
     if (plan.partition.isEmpty())
@@ -126,7 +133,7 @@ bool planFormat (const Drive& drive, FormatPlan& plan, juce::String& error)
 
     if (! removable)
     {
-        error = "\"" + drive.root.getFullPathName() + "\" is not a USB stick, so it won't be formatted.";
+        error = "\"" + (drive.mounted ? drive.root.getFullPathName() : drive.device) + "\" is not a USB stick, so it won't be formatted.";
         return false;
     }
 
