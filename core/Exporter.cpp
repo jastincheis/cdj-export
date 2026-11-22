@@ -1,4 +1,5 @@
 #include "Exporter.h"
+#include "Serato.h"
 
 #include "Drives.h"
 #include "Mp3.h"
@@ -256,6 +257,32 @@ ExportReport exportToStick (const std::vector<Track>& playlist, const juce::File
             library = previous;
     }
 
+    // Which formats this export writes: the chosen ones plus whatever the
+    // stick already carries
+    // (Even when replacing everything: an old library left as it was
+    // would point at files that are gone.)
+    juce::StringArray formats;
+
+    if (options.rekordbox) formats.add ("rekordbox");
+    if (options.serato) formats.add ("serato");
+
+    for (const auto& f : previous.formats)
+        formats.addIfNotAlreadyThere (f);
+
+    if (formats.isEmpty())
+    {
+        report.error = "Choose at least one: rekordbox or Serato.";
+        return report;
+    }
+
+    if (formats.contains ("serato") && hasForeignSeratoLibrary (root))
+    {
+        report.error = "This stick already has a Serato library on it (a _Serato_ folder this program "
+                       "didn't write). To keep it safe, nothing was written. Use another stick, "
+                       "or untick Serato.";
+        return report;
+    }
+
     if (! options.replaceEverything)
         if (! library.playlists.empty())
             for (const auto& p : library.playlists)
@@ -484,10 +511,11 @@ ExportReport exportToStick (const std::vector<Track>& playlist, const juce::File
     }
 
     library.playlists.push_back (newPlaylist);
+    library.formats = formats;
     library.writtenBy = "Adormis CDJ Export " + programVersion();
     library.writtenAt = juce::Time::getCurrentTime().toISO8601 (true);
 
-    if (! say ((total - 1.0) / total, "Writing the CDJ library: waveforms, beat grids, cues"))
+    if (! say ((total - 1.0) / total, formats.contains ("rekordbox") ? "Writing the CDJ library: waveforms, beat grids, cues" : "Writing the Serato library: cues, beat grids, crates"))
     {
         undo();
         report.cancelled = true;
@@ -497,7 +525,16 @@ ExportReport exportToStick (const std::vector<Track>& playlist, const juce::File
 
     juce::String error;
 
-    if (pioneerWriter != nullptr && ! pioneerWriter (library, root, error))
+    // Serato first: its tags change the files' sizes, which the Pioneer
+    // database records.
+    if (formats.contains ("serato") && ! writeSeratoLibrary (library, root, error))
+    {
+        undo();
+        report.error = "Writing the Serato library failed: " + error;
+        return report;
+    }
+
+    if (formats.contains ("rekordbox") && pioneerWriter != nullptr && ! pioneerWriter (library, root, error))
     {
         undo();
         report.error = "Writing the CDJ database failed: " + error;

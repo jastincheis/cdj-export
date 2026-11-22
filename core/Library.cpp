@@ -102,6 +102,13 @@ juce::var StickLibrary::toJson() const
     root->setProperty ("writtenAt", writtenAt);
     root->setProperty ("tracks", trackList);
     root->setProperty ("playlists", playlistList);
+
+    juce::Array<juce::var> formatList;
+
+    for (const auto& f : formats)
+        formatList.add (f);
+
+    root->setProperty ("formats", formatList);
     return juce::var (root);
 }
 
@@ -123,6 +130,13 @@ bool StickLibrary::fromJson (const juce::var& json, StickLibrary& library, juce:
 
     library.writtenBy = json["writtenBy"].toString();
     library.writtenAt = json["writtenAt"].toString();
+
+    // Sticks written before Serato support carry only rekordbox.
+    if (const auto* list = json["formats"].getArray())
+        for (const auto& f : *list)
+            library.formats.addIfNotAlreadyThere (f.toString());
+    else
+        library.formats.add ("rekordbox");
 
     if (const auto* list = json["tracks"].getArray())
         for (const auto& v : *list)

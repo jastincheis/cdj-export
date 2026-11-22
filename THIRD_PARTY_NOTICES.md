@@ -43,3 +43,10 @@ SOFTWARE.
   https://github.com/Holzhaus/rekordcrate); rekordcrate is also used, outside
   this program, by `tests/validate-with-rekordcrate.sh` to read back what the
   writer produces.
+
+## serato-tags (format documentation)
+
+core/Serato.cpp writes Serato's tag and crate formats as documented by
+serato-tags, https://github.com/Holzhaus/serato-tags (no code copied).
+
+Copyright 2019 Jan Holthuis. MIT License.

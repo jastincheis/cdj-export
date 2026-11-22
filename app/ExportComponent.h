@@ -66,6 +66,10 @@ private:
     juce::Label stickNote;
     juce::ToggleButton replaceToggle { "Replace everything on this stick (otherwise this playlist is added to it)" };
 
+    juce::Label forLabel { {}, "For" };
+    juce::ToggleButton rekordboxToggle { "rekordbox / Pioneer CDJ" };
+    juce::ToggleButton seratoToggle { "Serato DJ" };
+
     juce::Label formatLabel { {}, "Files on the stick" };
     juce::ComboBox formatBox;
 

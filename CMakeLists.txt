@@ -45,7 +45,8 @@ target_sources(cdj_core INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/core/PioneerPdb.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/PioneerAnlz.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/PioneerSettings.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/PioneerWriter.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/PioneerWriter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/Serato.cpp)
 target_include_directories(cdj_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/core)
 target_link_libraries(cdj_core INTERFACE juce::juce_audio_formats juce::juce_dsp)
 target_compile_definitions(cdj_core INTERFACE CDJ_VERSION="${PROJECT_VERSION}" JUCE_USE_MP3AUDIOFORMAT=1)

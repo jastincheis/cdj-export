@@ -12,6 +12,7 @@
 #include "PioneerSettings.h"
 #include "PioneerWriter.h"
 #include "RekordboxXml.h"
+#include "Serato.h"
 #include "Tempo.h"
 
 #include <cstdlib>
@@ -806,6 +807,237 @@ void testPioneerExport (const juce::File& dir)
 }
 } // namespace
 
+// Serato: tags in the files on the stick, crates, database V2, and the
+// rekordbox library next to it still right.
+juce::MemoryBlock decodeMarkers2 (const juce::MemoryBlock& tag)
+{
+    const auto* d = (const char*) tag.getData();
+
+    if (tag.getSize() < 3 || d[0] != 1 || d[1] != 1)
+        return {};
+
+    juce::String b64;
+
+    for (size_t i = 2; i < tag.getSize() && d[i] != 0; ++i)
+        if (d[i] != '\n')
+            b64 << juce::String::charToString ((juce::juce_wchar) (juce::uint8) d[i]);
+
+    // 'A' was written for '='; any trailing zero bytes it adds don't matter.
+    juce::MemoryOutputStream out;
+    juce::Base64::convertFromBase64 (out, b64);
+    return out.getMemoryBlock();
+}
+
+struct SeratoEntry { juce::String name; juce::MemoryBlock data; };
+
+std::vector<SeratoEntry> markers2Entries (const juce::MemoryBlock& payload)
+{
+    std::vector<SeratoEntry> r;
+    const auto* d = (const juce::uint8*) payload.getData();
+    size_t pos = 2;
+
+    while (pos < payload.getSize() && d[pos] != 0)
+    {
+        const auto nameStart = pos;
+
+        while (pos < payload.getSize() && d[pos] != 0)
+            ++pos;
+
+        SeratoEntry e;
+        e.name = juce::String ((const char*) d + nameStart, pos - nameStart);
+        ++pos;
+
+        if (pos + 4 > payload.getSize())
+            break;
+
+        const auto len = be32 (payload, pos);
+        pos += 4;
+
+        if (pos + len > payload.getSize())
+            break;
+
+        e.data = juce::MemoryBlock (d + pos, len);
+        pos += len;
+        r.push_back (std::move (e));
+    }
+
+    return r;
+}
+
+void testSerato (const juce::File& dir)
+{
+    const auto stick = dir.getChildFile ("serato-stick");
+    stick.deleteRecursively();
+    stick.createDirectory();
+    const auto sources = dir.getChildFile ("serato-sources");
+    sources.createDirectory();
+
+    const auto a = makeWav (sources, "Sera - One.wav", 44100.0, 16, 8.0,
+                            { { 44100, "Intro" }, { 88200, "Drop" } },
+                            { Region { 132300, 132300 + 44100, "Loop" } }, false, 128.0);
+    auto ta = load (a);
+    ta.bpm = 128.0;
+    ta.firstBeat = 22050;
+    const auto originalSize = a.getSize();
+
+    ExportOptions options;
+    options.playlistName = "Serato Set";
+    options.serato = true;
+    const PioneerWriter writer = writePioneerLibrary;
+    auto report = exportToStick ({ ta }, stick, options, {}, writer);
+    check (report.ok, "Serato + rekordbox export: " + report.error);
+    check (a.getSize() == originalSize, "the source WAV is not touched");
+    check (report.library.formats.contains ("serato") && report.library.formats.contains ("rekordbox"), "both formats recorded");
+
+    if (report.library.tracks.empty())
+        return;
+
+    const auto& st = report.library.tracks[0];
+    const auto onStick = stick.getChildFile (st.path);
+    check (onStick.getSize() == st.bytes, "manifest has the size after tagging");
+
+    // Still a WAV with the same audio and markers.
+    const auto back = load (onStick);
+    check (back.lengthSamples == ta.lengthSamples && back.markers.size() == ta.markers.size(),
+           "tagged WAV keeps its audio length and markers");
+
+    const auto tag = readId3Tag (onStick);
+    check (tag.getSize() > 10, "WAV has an id3 chunk");
+
+    const auto entries = markers2Entries (decodeMarkers2 (findGeob (tag, "Serato Markers2")));
+    int cues = 0, loops = 0;
+    bool lock = false;
+
+    for (const auto& e : entries)
+    {
+        if (e.name == "CUE")
+        {
+            ++cues;
+            const auto index = (int) ((const juce::uint8*) e.data.getData())[1];
+            const auto ms = (juce::int64) be32 (e.data, 2);
+            juce::int64 expected = -1;
+
+            for (const auto& c : st.cues)
+                if (c.kind == Cue::Kind::hot && c.hotIndex == index)
+                    expected = c.startMs;
+
+            check (ms == expected, "Serato hot cue " + juce::String (index + 1) + " at " + juce::String (ms) + " ms");
+        }
+
+        if (e.name == "LOOP")
+        {
+            ++loops;
+            check (be32 (e.data, 2) == 3000 && be32 (e.data, 6) == 4000, "Serato loop 3000-4000 ms");
+        }
+
+        if (e.name == "BPMLOCK")
+            lock = ((const juce::uint8*) e.data.getData())[0] == 1;
+    }
+
+    check (cues == 3 && loops == 1 && lock, "Markers2: 3 hot cues, 1 loop, grid locked (got " + juce::String (cues) + ", "
+                                                + juce::String (loops) + ")");
+
+    const auto grid = findGeob (tag, "Serato BeatGrid");
+    check (grid.getSize() == 15, "BeatGrid: one terminal marker");
+
+    if (grid.getSize() == 15)
+    {
+        const auto pos = be32 (grid, 6), bpm = be32 (grid, 10);
+        float p, b;
+        memcpy (&p, &pos, 4);
+        memcpy (&b, &bpm, 4);
+        check (std::abs (p - 0.5f) < 1e-6f && b == 128.0f, "BeatGrid at 0.5 s, 128 BPM");
+    }
+
+    const auto crate = stick.getChildFile ("_Serato_/Subcrates/Serato Set.crate");
+    juce::MemoryBlock crateData;
+    check (crate.loadFileAsData (crateData) && crateData.getSize() > 0, "crate written");
+    juce::MemoryOutputStream path16;
+
+    for (auto* p = st.path.toUTF16().getAddress(); *p != 0; ++p)
+    {
+        path16.writeByte ((char) (*p >> 8));
+        path16.writeByte ((char) (*p & 0xff));
+    }
+
+    check (std::search ((const char*) crateData.getData(), (const char*) crateData.getData() + crateData.getSize(),
+                        (const char*) path16.getData(), (const char*) path16.getData() + path16.getDataSize())
+               != (const char*) crateData.getData() + crateData.getSize(),
+           "crate lists the track by its path on the stick");
+    check (stick.getChildFile ("_Serato_/database V2").getSize() > 0, "database V2 written");
+
+    // A second export: still one id3 chunk, the old crate kept, sizes right.
+    options.playlistName = "Second";
+    report = exportToStick ({ ta }, stick, options, {}, writer);
+    check (report.ok && report.tracksReused == 1, "second Serato export reuses the track: " + report.error);
+    int id3Chunks = 0;
+    {
+        juce::MemoryBlock wav;
+        onStick.loadFileAsData (wav);
+        for (size_t pos = 12; pos + 8 <= wav.getSize();)
+        {
+            const auto size = le32 (wav, pos + 4);
+            if (memcmp ((const char*) wav.getData() + pos, "id3 ", 4) == 0)
+                ++id3Chunks;
+            pos += 8 + size + (size & 1);
+        }
+    }
+    check (id3Chunks == 1, "still one id3 chunk after a second export");
+    check (stick.getChildFile ("_Serato_/Subcrates/Serato Set.crate").existsAsFile()
+               && stick.getChildFile ("_Serato_/Subcrates/Second.crate").existsAsFile(),
+           "both crates there");
+
+    // Serato not ticked any more: the stick still has it, so it's kept up to date.
+    options.playlistName = "Third";
+    options.serato = false;
+    report = exportToStick ({ ta }, stick, options, {}, writer);
+    check (report.ok && stick.getChildFile ("_Serato_/Subcrates/Third.crate").existsAsFile(),
+           "a Serato stick keeps getting crates");
+
+    // A Serato library someone else made is left alone.
+    const auto foreign = dir.getChildFile ("foreign-serato");
+    foreign.deleteRecursively();
+    foreign.getChildFile ("_Serato_").createDirectory();
+    options.serato = true;
+    options.playlistName = "X";
+    report = exportToStick ({ ta }, foreign, options, {}, writer);
+    check (! report.ok && report.error.contains ("Serato"), "foreign _Serato_ folder refused");
+
+    // Serato only: no Pioneer database.
+    const auto only = dir.getChildFile ("serato-only");
+    only.deleteRecursively();
+    only.createDirectory();
+    options.rekordbox = false;
+    report = exportToStick ({ ta }, only, options, {}, writer);
+    check (report.ok && ! only.getChildFile ("PIONEER/rekordbox/export.pdb").exists()
+               && only.getChildFile ("_Serato_/database V2").existsAsFile(),
+           "Serato-only export: no export.pdb: " + report.error);
+
+    if (mp3EncodingAvailable())
+    {
+        const auto mp3Stick = dir.getChildFile ("serato-mp3");
+        mp3Stick.deleteRecursively();
+        mp3Stick.createDirectory();
+        options.rekordbox = true;
+        options.format = ExportOptions::Format::mp3;
+        options.playlistName = "MP3";
+        report = exportToStick ({ ta }, mp3Stick, options, {}, writer);
+        check (report.ok && ! report.library.tracks.empty(), "Serato MP3 export: " + report.error);
+
+        if (! report.library.tracks.empty())
+        {
+            const auto mp3 = mp3Stick.getChildFile (report.library.tracks[0].path);
+            const auto mp3Tag = readId3Tag (mp3);
+            check (findGeob (mp3Tag, "Serato Markers2").getSize() >= 470 && findGeob (mp3Tag, "Serato BeatGrid").getSize() == 15,
+                   "MP3 carries the Serato tags");
+            check (mp3EncoderDelay (mp3) >= 0, "LAME header still found after the tag");
+            const auto again = load (mp3);
+            check (std::abs (again.seconds() - ta.seconds()) < 0.1, "tagged MP3 still decodes, length "
+                                                                       + juce::String (again.seconds()));
+        }
+    }
+}
+
 int main (int argc, char** argv)
 {
     // --make-stick <folder> <expected.json>: only build the sample Pioneer
@@ -822,6 +1054,20 @@ int main (int argc, char** argv)
         scratch.deleteRecursively();
         std::cout << library.tracks.size() << " tracks, " << library.playlists.size() << " playlists in "
                   << stick.getFullPathName() << std::endl;
+        return failures == 0 ? 0 : 1;
+    }
+
+    // --make-serato-sticks <folder>: only the Serato test, files kept there
+    // (for checking them with other tools).
+    if (argc == 3 && juce::String (argv[1]) == "--make-serato-sticks")
+    {
+        const auto out = juce::File::getCurrentWorkingDirectory().getChildFile (argv[2]);
+        out.deleteRecursively();
+        out.createDirectory();
+        setenv ("HOME", out.getChildFile ("home").getFullPathName().toRawUTF8(), 1);
+        out.getChildFile ("home").createDirectory();
+        testSerato (out);
+        std::cout << checks - failures << " of " << checks << " checks passed, sticks in " << out.getFullPathName() << std::endl;
         return failures == 0 ? 0 : 1;
     }
 
@@ -847,6 +1093,7 @@ int main (int argc, char** argv)
     testGridExport (dir);
     testPioneerFormats();
     testPioneerExport (dir);
+    testSerato (dir);
 
     std::cout << checks - failures << " of " << checks << " checks passed" << std::endl;
 

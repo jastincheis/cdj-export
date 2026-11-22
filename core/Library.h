@@ -34,6 +34,7 @@ struct StickLibrary
 {
     std::vector<StickTrack> tracks;
     std::vector<StickPlaylist> playlists;
+    juce::StringArray formats;          // "rekordbox", "serato": what this stick carries
     juce::String writtenBy, writtenAt;
 
     const StickTrack* find (int id) const;

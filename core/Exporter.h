@@ -17,6 +17,11 @@ struct ExportOptions
     juce::String playlistName = "Adormis";
     bool replaceEverything = false;     // on a stick written before: false = add this playlist to it
     bool rekordboxXml = true;           // also write "Adormis CDJ Export.xml" on the stick
+
+    // For which DJ software. A stick keeps every format it was written in
+    // before (unless everything is replaced), so no library on it goes stale.
+    bool rekordbox = true;              // Pioneer CDJs / rekordbox: PIONEER folder
+    bool serato = false;                // Serato DJ: tags in the audio files + _Serato_ crates
 };
 
 struct ExportReport

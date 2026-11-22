@@ -200,7 +200,7 @@ ExportComponent::ExportComponent()
     editor.cueOptions = [this] { return currentOptions().cues; };
     addAndMakeVisible (editor);
 
-    for (auto* l : { &playlistLabel, &stickLabel, &formatLabel })
+    for (auto* l : { &playlistLabel, &stickLabel, &forLabel, &formatLabel })
     {
         l->setColour (juce::Label::textColourId, muted);
         addAndMakeVisible (*l);
@@ -309,8 +309,9 @@ ExportComponent::ExportComponent()
     loopsToggle.setToggleState (true, juce::dontSendNotification);
     mp3DelayToggle.setToggleState (true, juce::dontSendNotification);
     xmlToggle.setToggleState (true, juce::dontSendNotification);
+    rekordboxToggle.setToggleState (true, juce::dontSendNotification);
 
-    for (auto* t : { &hotToggle, &memoryToggle, &loopsToggle, &coloursToggle, &mp3DelayToggle, &xmlToggle, &replaceToggle })
+    for (auto* t : { &rekordboxToggle, &seratoToggle, &hotToggle, &memoryToggle, &loopsToggle, &coloursToggle, &mp3DelayToggle, &xmlToggle, &replaceToggle })
     {
         t->setColour (juce::ToggleButton::textColourId, ink);
         t->setColour (juce::ToggleButton::tickColourId, accent);
@@ -382,6 +383,12 @@ void ExportComponent::resized()
     stickBox.setBounds (row);
     stickNote.setBounds (bottom.removeFromTop (36).withTrimmedLeft (110));
     replaceToggle.setBounds (bottom.removeFromTop (26).withTrimmedLeft (106));
+
+    bottom.removeFromTop (4);
+    row = bottom.removeFromTop (28);
+    forLabel.setBounds (row.removeFromLeft (110));
+    rekordboxToggle.setBounds (row.removeFromLeft (230));
+    seratoToggle.setBounds (row.removeFromLeft (160));
 
     bottom.removeFromTop (4);
     row = bottom.removeFromTop (28);
@@ -597,6 +604,8 @@ ExportOptions ExportComponent::currentOptions() const
     o.rekordboxXml = xmlToggle.getToggleState();
     o.playlistName = playlistName.getText().trim();
     o.replaceEverything = replaceToggle.getToggleState();
+    o.rekordbox = rekordboxToggle.getToggleState();
+    o.serato = seratoToggle.getToggleState();
     return o;
 }
 
@@ -650,7 +659,8 @@ void ExportComponent::updateState()
     mountButton.setVisible (d != nullptr && ! d->mounted);
 
     const auto canExport = ! tracks.empty() && d != nullptr && d->mounted && d->content != StickContent::rekordbox
-                           && playlistName.getText().trim().isNotEmpty();
+                           && playlistName.getText().trim().isNotEmpty()
+                           && (rekordboxToggle.getToggleState() || seratoToggle.getToggleState());
     exportButton.setEnabled (canExport);
     formatButton.setEnabled (d != nullptr);
     ejectButton.setEnabled (d != nullptr);
@@ -753,12 +763,26 @@ void ExportComponent::runExport()
                 if (report.tracksConverted > 0)
                     text << " (" << report.tracksConverted << " converted)";
 
-                text << ".\n\nThe stick is ready for CDJs and rekordbox: playlists, cues, loops, beat grid and waveforms";
-
-                if (report.xmlFile != juce::File())
-                    text << ", plus \"" << report.xmlFile.getFileName() << "\" for rekordbox's XML import";
-
                 text << ".";
+                const auto& formats = report.library.formats;
+
+                if (formats.contains ("rekordbox"))
+                {
+                    text << "\n\nReady for CDJs and rekordbox: playlists, cues, loops, beat grid and waveforms";
+
+                    if (report.xmlFile != juce::File())
+                        text << ", plus \"" << report.xmlFile.getFileName() << "\" for rekordbox's XML import";
+
+                    text << ".";
+                }
+
+                if (formats.contains ("serato"))
+                    text << "\n\nReady for Serato DJ: a crate per playlist, hot cues 1-8, saved loops and the beat grid "
+                            "(locked). Serato draws the waveforms itself the first time it opens the stick.";
+
+                if (formats.contains ("rekordbox") != options.rekordbox || formats.contains ("serato") != options.serato)
+                    text << "\n\n(This stick already had " << (options.rekordbox ? "Serato" : "rekordbox")
+                         << " on it from before, so that was updated too.)";
             }
             else
             {
