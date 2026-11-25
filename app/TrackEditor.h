@@ -1,7 +1,7 @@
 #pragma once
 
-#include "CuePlan.h"
-#include "Track.h"
+#include "../core/CuePlan.h"
+#include "../core/Track.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -116,6 +116,7 @@ private:
     bool draggingFirstBeat = false, dragMoved = false;
 
     juce::AudioDeviceManager devices;
+    juce::AudioDeviceManager* playDevices = nullptr;   // Adormis Audio's device, when inside it
     juce::AudioSourcePlayer sourcePlayer;
     juce::AudioTransportSource transport;
     Metronome metronome { transport };

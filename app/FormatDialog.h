@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Format.h"
+#include "../core/Format.h"
 
 #include <juce_gui_extra/juce_gui_extra.h>
 

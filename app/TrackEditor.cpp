@@ -1,6 +1,7 @@
 #include "TrackEditor.h"
 
-#include "Tempo.h"
+#include "../core/Tempo.h"
+#include "SharedAudio.h"
 
 #include <atomic>
 #include <map>
@@ -286,7 +287,7 @@ TrackEditor::~TrackEditor()
     loader = nullptr;
 
     if (audioReady)
-        devices.removeAudioCallback (&sourcePlayer);
+        (playDevices != nullptr ? *playDevices : devices).removeAudioCallback (&sourcePlayer);
 
     sourcePlayer.setSource (nullptr);
     transport.setSource (nullptr);
@@ -430,16 +431,21 @@ void TrackEditor::togglePlay()
 
     if (! audioReady)
     {
-        const auto error = devices.initialiseWithDefaultDevices (0, 2);
+        playDevices = sharedAudioDevices();
 
-        if (error.isNotEmpty())
+        if (playDevices == nullptr)
         {
-            gridNote.setText ("No sound output: " + error, juce::dontSendNotification);
-            return;
+            const auto error = devices.initialiseWithDefaultDevices (0, 2);
+
+            if (error.isNotEmpty())
+            {
+                gridNote.setText ("No sound output: " + error, juce::dontSendNotification);
+                return;
+            }
         }
 
         sourcePlayer.setSource (&metronome);
-        devices.addAudioCallback (&sourcePlayer);
+        (playDevices != nullptr ? *playDevices : devices).addAudioCallback (&sourcePlayer);
         audioReady = true;
     }
 

@@ -3,8 +3,8 @@
 #include "AudioBrowser.h"
 
 #include "FormatDialog.h"
-#include "Mp3.h"
-#include "PioneerWriter.h"
+#include "../core/Mp3.h"
+#include "../core/PioneerWriter.h"
 
 namespace cdj
 {
@@ -206,9 +206,10 @@ ExportComponent::ExportComponent()
         addAndMakeVisible (*l);
     }
 
-    playlistName.setText ("Adormis " + juce::Time::getCurrentTime().formatted ("%Y-%m-%d"));
+    // Colours first: a TextEditor paints text in the colour it had when typed.
     playlistName.setColour (juce::TextEditor::backgroundColourId, panel);
     playlistName.setColour (juce::TextEditor::textColourId, ink);
+    playlistName.setText ("Adormis " + juce::Time::getCurrentTime().formatted ("%Y-%m-%d"));
     playlistName.onTextChange = [this] { updateState(); };
     addAndMakeVisible (playlistName);
 

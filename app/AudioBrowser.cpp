@@ -1,6 +1,7 @@
 #include "AudioBrowser.h"
 
-#include "Track.h"
+#include "../core/Track.h"
+#include "SharedAudio.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -69,7 +70,7 @@ public:
         transport.stop();
 
         if (audioReady)
-            devices.removeAudioCallback (&player);
+            (playDevices != nullptr ? *playDevices : devices).removeAudioCallback (&player);
 
         player.setSource (nullptr);
         transport.setSource (nullptr);
@@ -187,14 +188,16 @@ private:
 
         if (! audioReady)
         {
-            if (devices.initialiseWithDefaultDevices (0, 2).isNotEmpty())
+            playDevices = sharedAudioDevices();
+
+            if (playDevices == nullptr && devices.initialiseWithDefaultDevices (0, 2).isNotEmpty())
             {
                 details = "No sound output.";
                 return;
             }
 
             player.setSource (&transport);
-            devices.addAudioCallback (&player);
+            (playDevices != nullptr ? *playDevices : devices).addAudioCallback (&player);
             audioReady = true;
         }
 
@@ -238,6 +241,7 @@ private:
     double length = 0.0;
 
     juce::AudioDeviceManager devices;
+    juce::AudioDeviceManager* playDevices = nullptr;   // Adormis Audio's device, when inside it
     juce::AudioSourcePlayer player;
     juce::AudioTransportSource transport;
     std::unique_ptr<juce::AudioFormatReaderSource> source;

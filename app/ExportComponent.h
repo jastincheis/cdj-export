@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Drives.h"
-#include "Exporter.h"
+#include "../core/Drives.h"
+#include "../core/Exporter.h"
 #include "TrackEditor.h"
 
 #include <juce_gui_extra/juce_gui_extra.h>
