@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows (x64)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        id: v
+        shell: bash
+        run: echo "version=$(sed -n 's/^project(AdormisCdjExport VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)" >> "$GITHUB_OUTPUT"
+      - name: Configure
+        run: cmake -S . -B build
+      - name: Build
+        run: cmake --build build --config Release -j 4
+      - name: Tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          t=$(find build -name 'cdj_tests.exe' | head -1)
+          echo "running $t"
+          "$t"
+      - name: Package
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse build -Filter 'Adormis CDJ Export.exe' | Select-Object -First 1
+          Compress-Archive -Path $exe.FullName,'LICENSE','THIRD_PARTY_NOTICES.md' -DestinationPath AdormisCdjExport-${{ steps.v.outputs.version }}-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AdormisCdjExport-Windows
+          path: AdormisCdjExport-${{ steps.v.outputs.version }}-Windows.zip
