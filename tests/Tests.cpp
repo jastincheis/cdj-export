@@ -18,6 +18,11 @@
 #include <cstdlib>
 #include <iostream>
 
+#if JUCE_WINDOWS
+// MSVC has no setenv; _putenv_s does the same job for the tests.
+static int setenv (const char* name, const char* value, int) { return _putenv_s (name, value); }
+#endif
+
 using namespace cdj;
 
 namespace

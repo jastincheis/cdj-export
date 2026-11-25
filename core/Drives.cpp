@@ -2,12 +2,6 @@
 
 #if JUCE_WINDOWS
  #include <windows.h>
-bool ejectDrive (const Drive&, juce::String& error)
-{
-    error = "On Windows use \"Safely Remove Hardware\" (the USB icon by the clock) before pulling the stick out.";
-    return false;
-}
-
 #elif JUCE_MAC
  #include <sys/mount.h>
  #include <sys/param.h>
@@ -141,6 +135,12 @@ bool mountDrive (Drive& drive, juce::String& error)
         return true;
 
     error = "Windows mounts sticks by itself; if it doesn't show a drive letter, it needs Format...";
+    return false;
+}
+
+bool ejectDrive (const Drive&, juce::String& error)
+{
+    error = "On Windows use \"Safely Remove Hardware\" (the USB icon by the clock) before pulling the stick out.";
     return false;
 }
 
